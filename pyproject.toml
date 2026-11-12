@@ -1,0 +1,25 @@
+
+[project]
+name = "reliable-udp-file-transfer"
+version = "0.1.0"
+description = "Reliable file transfer over UDP using Stop-and-Wait ARQ"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
