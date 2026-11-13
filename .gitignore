@@ -7,6 +7,11 @@ __pycache__/
 .venv/
 venv/
 
+# Python packaging and build artifacts
+*.egg-info/
+build/
+dist/
+
 # Testing and linting
 .pytest_cache/
 .ruff_cache/
@@ -26,3 +31,10 @@ logs/*
 # Generated transfer files
 received_*
 *.part
+
+# Received files and local transfer output
+received/
+received_*/
+
+# Python cache
+__pycache__/
