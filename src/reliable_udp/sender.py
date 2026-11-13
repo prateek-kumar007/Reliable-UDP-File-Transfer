@@ -4,6 +4,7 @@ import hashlib
 import secrets
 import socket
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from reliable_udp.metadata import StartMetadata, encode_start_metadata
@@ -24,6 +25,17 @@ from reliable_udp.transport import (
 )
 
 PeerAddress = tuple[str, int]
+EventCallback = Callable[[dict[str, object]], None]
+
+
+def _emit(
+    callback: EventCallback | None,
+    event: str,
+    **details: object,
+) -> None:
+    """Send a structured event to the optional callback."""
+    if callback is not None:
+        callback({"event": event, **details})
 
 
 def _file_details(file_obj) -> tuple[int, bytes]:
@@ -45,6 +57,8 @@ def _send_end(
     peer: PeerAddress,
     timeout: float,
     max_retransmissions: int,
+    *,
+    event_callback: EventCallback | None = None,
 ) -> int:
     """Send END until the matching FIN_ACK arrives or retries are exhausted."""
     original_timeout = sock.gettimeout()
@@ -52,6 +66,15 @@ def _send_end(
     try:
         for attempt in range(max_retransmissions + 1):
             sock.sendto(encode_packet(packet), peer)
+            _emit(
+                event_callback,
+                "packet_sent",
+                message_type=packet.message_type.name,
+                sequence=packet.sequence,
+                attempt=attempt + 1,
+                retransmission=attempt > 0,
+            )
+
             deadline = time.monotonic() + timeout
 
             while True:
@@ -80,7 +103,23 @@ def _send_end(
                     and response.sequence == packet.sequence
                     and not response.payload
                 ):
+                    _emit(
+                        event_callback,
+                        "ack_received",
+                        message_type=MessageType.FIN_ACK.name,
+                        sequence=response.sequence,
+                        attempt=attempt + 1,
+                    )
                     return attempt + 1
+
+            _emit(
+                event_callback,
+                "timeout",
+                message_type=packet.message_type.name,
+                sequence=packet.sequence,
+                attempt=attempt + 1,
+                retries_remaining=max_retransmissions - attempt,
+            )
 
         raise TimeoutError(
             f"No FIN_ACK received after {max_retransmissions + 1} attempts"
@@ -97,8 +136,14 @@ def send_file(
     chunk_size: int = MAX_PAYLOAD_SIZE,
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
     max_retransmissions: int = DEFAULT_MAX_RETRANSMISSIONS,
+    event_callback: EventCallback | None = None,
 ) -> dict[str, int | str]:
-    """Transfer one file and return transfer statistics."""
+    """Transfer one file and return transfer statistics.
+
+    Events are delivered synchronously from the calling thread. GUI callers
+    should forward them through a thread-safe queue rather than updating
+    widgets directly from a networking thread.
+    """
     source = Path(source_path)
 
     if not source.is_file():
@@ -145,6 +190,14 @@ def send_file(
 
         transfer_id = secrets.token_bytes(16)
 
+        _emit(
+            event_callback,
+            "transfer_started",
+            filename=source.name,
+            total_bytes=file_size,
+            total_chunks=total_chunks,
+        )
+
         start_packet = Packet(
             MessageType.START,
             transfer_id,
@@ -158,6 +211,7 @@ def send_file(
             peer,
             timeout=timeout,
             max_retransmissions=max_retransmissions,
+            event_callback=event_callback,
         )
 
         bytes_sent = 0
@@ -181,8 +235,20 @@ def send_file(
                 peer,
                 timeout=timeout,
                 max_retransmissions=max_retransmissions,
+                event_callback=event_callback,
             )
+
             bytes_sent += len(data)
+
+            _emit(
+                event_callback,
+                "progress",
+                filename=source.name,
+                bytes_acknowledged=bytes_sent,
+                total_bytes=file_size,
+                chunks_acknowledged=sequence + 1,
+                total_chunks=total_chunks,
+            )
 
         if file_obj.read(1):
             raise OSError("Source file grew during transfer")
@@ -209,11 +275,20 @@ def send_file(
         peer,
         timeout,
         max_retransmissions,
+        event_callback=event_callback,
     )
 
-    return {
+    result: dict[str, int | str] = {
         "filename": source.name,
         "bytes_sent": bytes_sent,
         "chunks_sent": total_chunks,
         "attempts": total_attempts,
     }
+
+    _emit(
+        event_callback,
+        "transfer_completed",
+        **result,
+    )
+
+    return result
