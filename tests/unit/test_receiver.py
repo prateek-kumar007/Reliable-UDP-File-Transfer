@@ -159,3 +159,96 @@ def test_reset_allows_a_new_transfer():
 
     assert response is not None
     assert state.active_transfer_id == new_id
+def data_packet(
+    sequence=0,
+    payload=b"filedata",
+    transfer_id=TRANSFER_ID,
+):
+    return Packet(MessageType.DATA, transfer_id, sequence, payload)
+
+
+def send_data(state, packet, peer=PEER):
+    return state.handle_datagram(encode_packet(packet), peer)
+
+
+def test_ignores_data_before_start():
+    state = ReceiverState()
+
+    response = send_data(state, data_packet())
+
+    assert response is None
+    assert not state.has_active_transfer
+
+
+def test_accepts_expected_data_and_returns_ack():
+    state = ReceiverState()
+    send_start(state, start_packet())
+
+    response = send_data(state, data_packet())
+
+    assert response is not None
+    ack = decode_packet(response)
+    assert ack.message_type is MessageType.ACK
+    assert ack.transfer_id == TRANSFER_ID
+    assert ack.sequence == 0
+    assert ack.payload == bytes((MessageType.DATA,))
+
+
+
+def test_duplicate_data_is_reacknowledged():
+    state = ReceiverState()
+    send_start(state, start_packet())
+
+    first_response = send_data(state, data_packet())
+    assert state.next_expected_sequence == 1
+    assert state.received_bytes == 8
+
+    duplicate_response = send_data(state, data_packet())
+
+    assert first_response is not None
+    assert duplicate_response == first_response
+    assert state.next_expected_sequence == 1
+    assert state.received_bytes == 8
+
+
+
+def test_ignores_out_of_order_data():
+    state = ReceiverState()
+    send_start(state, start_packet())
+
+    response = send_data(state, data_packet(sequence=1))
+
+    assert response is None
+
+
+def test_ignores_data_from_different_peer():
+    state = ReceiverState()
+    send_start(state, start_packet())
+
+    response = send_data(state, data_packet(), OTHER_PEER)
+
+    assert response is None
+
+
+def test_ignores_data_with_different_transfer_id():
+    state = ReceiverState()
+    send_start(state, start_packet())
+
+    response = send_data(
+        state,
+        data_packet(transfer_id=b"\xff" * 16),
+    )
+
+    assert response is None
+
+
+def test_ignores_data_larger_than_declared_file_size():
+    state = ReceiverState()
+    send_start(state, start_packet())
+
+    response = send_data(
+        state,
+        data_packet(payload=b"x" * 9),
+    )
+
+    assert response is None
