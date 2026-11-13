@@ -3,6 +3,7 @@
 
 import socket
 import time
+from collections.abc import Callable
 
 from reliable_udp.protocol import (
     MessageType,
@@ -14,6 +15,18 @@ from reliable_udp.protocol import (
 
 DEFAULT_TIMEOUT_SECONDS = 0.5
 DEFAULT_MAX_RETRANSMISSIONS = 8
+
+EventCallback = Callable[[dict[str, object]], None]
+
+
+def _emit(
+    callback: EventCallback | None,
+    event: str,
+    **details: object,
+) -> None:
+    """Report a transport event when a callback is configured."""
+    if callback is not None:
+        callback({"event": event, **details})
 
 
 def make_ack(packet: Packet) -> Packet:
@@ -45,10 +58,12 @@ def send_with_ack(
     peer: tuple[str, int],
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
     max_retransmissions: int = DEFAULT_MAX_RETRANSMISSIONS,
+    *,
+    event_callback: EventCallback | None = None,
 ) -> int:
     """Send START or DATA until its matching ACK arrives.
 
-    Returns the number of transmission attempts, including the initial send.
+    Returns transmission attempts, including the initial send.
     Raises TimeoutError after all attempts fail.
     """
     if packet.message_type not in (MessageType.START, MessageType.DATA):
@@ -69,6 +84,14 @@ def send_with_ack(
 
     for attempt in range(1, total_attempts + 1):
         sock.sendto(datagram, peer)
+        _emit(
+            event_callback,
+            "packet_sent",
+            message_type=packet.message_type.name,
+            sequence=packet.sequence,
+            attempt=attempt,
+            retransmission=attempt > 1,
+        )
         deadline = time.monotonic() + timeout
 
         while True:
@@ -92,7 +115,23 @@ def send_with_ack(
                 continue
 
             if _matches_ack(response, packet):
+                _emit(
+                    event_callback,
+                    "ack_received",
+                    message_type=packet.message_type.name,
+                    sequence=packet.sequence,
+                    attempt=attempt,
+                )
                 return attempt
+
+        _emit(
+            event_callback,
+            "timeout",
+            message_type=packet.message_type.name,
+            sequence=packet.sequence,
+            attempt=attempt,
+            retries_remaining=total_attempts - attempt,
+        )
 
     raise TimeoutError(
         f"No matching ACK after {total_attempts} transmission attempts"
