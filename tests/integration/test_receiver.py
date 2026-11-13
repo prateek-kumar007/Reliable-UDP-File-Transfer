@@ -1,7 +1,9 @@
 
+import hashlib
 import socket
 import threading
 
+from reliable_udp.metadata import StartMetadata, encode_start_metadata
 from reliable_udp.protocol import MessageType, Packet, decode_packet, encode_packet
 from reliable_udp.receiver import ReceiverState
 
@@ -32,7 +34,14 @@ def test_receiver_reacks_duplicate_start_over_real_udp():
             MessageType.START,
             bytes(range(16)),
             0,
-            b"same metadata",
+            encode_start_metadata(
+                StartMetadata(
+                    filename="sample.txt",
+                    file_size=4,
+                    chunk_size=1000,
+                    sha256=hashlib.sha256(b"data").digest(),
+                )
+            ),
         )
         encoded_start = encode_packet(start)
 

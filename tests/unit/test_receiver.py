@@ -1,5 +1,14 @@
+import hashlib
 
-from reliable_udp.protocol import MessageType, Packet, decode_packet, encode_packet
+import pytest
+
+from reliable_udp.metadata import StartMetadata, encode_start_metadata
+from reliable_udp.protocol import (
+    MessageType,
+    Packet,
+    decode_packet,
+    encode_packet,
+)
 from reliable_udp.receiver import ReceiverState
 
 PEER = ("127.0.0.1", 9000)
@@ -7,11 +16,24 @@ OTHER_PEER = ("127.0.0.1", 9001)
 TRANSFER_ID = bytes(range(16))
 
 
+def valid_payload(filename="report.txt"):
+    return encode_start_metadata(
+        StartMetadata(
+            filename=filename,
+            file_size=8,
+            chunk_size=1000,
+            sha256=hashlib.sha256(b"filedata").digest(),
+        )
+    )
+
+
 def start_packet(
     transfer_id=TRANSFER_ID,
-    payload=b"metadata",
+    payload=None,
     sequence=0,
 ):
+    if payload is None:
+        payload = valid_payload()
     return Packet(MessageType.START, transfer_id, sequence, payload)
 
 
@@ -69,12 +91,12 @@ def test_ignores_different_transfer_id_while_busy():
 
 def test_ignores_conflicting_metadata_for_same_transfer():
     state = ReceiverState()
-    send_start(state, start_packet(payload=b"original"))
+    send_start(state, start_packet(payload=valid_payload("original.txt")))
 
-    response = send_start(state, start_packet(payload=b"changed"))
+    response = send_start(state, start_packet(payload=valid_payload("changed.txt")))
 
     assert response is None
-    assert state.start_payload == b"original"
+    assert state.start_payload == valid_payload("original.txt")
 
 
 def test_ignores_start_with_nonzero_sequence():
@@ -103,6 +125,27 @@ def test_ignores_malformed_datagram():
 
     assert response is None
     assert not state.has_active_transfer
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"",
+        b"not metadata",
+        valid_payload() + b"\x00",
+        b"\x00\x01\xff",
+    ],
+)
+def test_rejects_invalid_metadata_without_activating_receiver(payload):
+    state = ReceiverState()
+
+    response = send_start(state, start_packet(payload=payload))
+
+    assert response is None
+    assert not state.has_active_transfer
+    assert state.active_peer is None
+    assert state.active_transfer_id is None
+    assert state.start_payload is None
 
 
 def test_reset_allows_a_new_transfer():
