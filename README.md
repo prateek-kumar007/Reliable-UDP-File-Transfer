@@ -2,6 +2,14 @@
 
 A Python desktop application for transferring files over UDP with a custom **Stop-and-Wait ARQ** reliability layer. It adds acknowledgements, timeout-based retransmissions, transfer identifiers, sequence numbers, and SHA-256 verification on top of UDP.
 
+## Want to run the app? Start here
+
+- **[Windows Quick Start for friends](GETTING_STARTED.md)** — simple download, extraction, and run instructions.
+- **[Download the ready-to-run Windows ZIP](https://github.com/prateek-kumar007/Reliable-UDP-File-Transfer/releases/download/v0.1.0/ReliableUDPFileTransfer-Windows-x64.zip)** — no Python or Git installation required.
+- [Release page](https://github.com/prateek-kumar007/Reliable-UDP-File-Transfer/releases/tag/v0.1.0)
+- [Full Windows User Manual](USER_MANUAL.md)
+
+
 ## Features
 
 - **Stop-and-Wait ARQ:** Sends one data chunk at a time and waits for its acknowledgement before advancing.
@@ -122,7 +130,7 @@ python -m compileall -q src
 Run Ruff:
 
 ```powershell
-python -m python -m ruff check src tests
+python -m ruff check src tests
 ```
 
 The project snapshot reviewed for this README passed **107 tests** and Python compilation. Re-run the commands above after making code changes to verify your working copy.
