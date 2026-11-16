@@ -60,6 +60,8 @@ jobs:
           8. History is stored in %USERPROFILE%\.reliable_udp\transfer_history.json.
           "@ | Set-Content dist/ReliableUDPFileTransfer/QUICK_START.txt -Encoding utf8
 
+          Copy-Item USER_MANUAL.md dist/ReliableUDPFileTransfer/USER_MANUAL.md
+
           Compress-Archive -Path dist/ReliableUDPFileTransfer/* -DestinationPath dist/ReliableUDPFileTransfer-Windows-x64.zip -Force
 
       - name: Upload ZIP as a workflow artifact
