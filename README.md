@@ -1,307 +1,171 @@
-\# Reliable UDP File Transfer
+# Reliable UDP File Transfer
 
+A Python desktop application for transferring files over UDP with a custom **Stop-and-Wait ARQ** reliability layer. It adds acknowledgements, timeout-based retransmissions, transfer identifiers, sequence numbers, and SHA-256 verification on top of UDP.
 
+## Features
 
-A Python desktop application for reliable file transfer over UDP using the \*\*Stop-and-Wait ARQ\*\* protocol.
+- **Stop-and-Wait ARQ:** Sends one data chunk at a time and waits for its acknowledgement before advancing.
+- **Timeouts and retransmissions:** Retries a transfer packet when its matching acknowledgement is not received within the configured timeout.
+- **Transfer identity and sequencing:** Uses a transfer ID and sequence number to match protocol messages to the active transfer.
+- **Integrity verification:** Checks the declared file size and SHA-256 digest before publishing a received file.
+- **No-overwrite storage:** Received files are written to a temporary file and published only after verification. An existing destination file is never overwritten.
+- **Tkinter desktop GUI:** Sender and receiver controls in the transfer dashboard, including progress, elapsed time, packet attempts, and transfer rate.
+- **Activity logs:** Displays protocol and transfer events in the GUI.
+- **Transfer history:** Tracks completed and failed transfers, provides filtering and CSV export, and persists history between application restarts.
+- **Automated tests:** Includes unit and integration tests for packet encoding, metadata validation, transport behavior, receiver behavior, and file transfers.
 
+## Technology stack
 
+- Python 3.12 or newer
+- Tkinter (desktop GUI)
+- UDP sockets
+- Stop-and-Wait ARQ
+- SHA-256 (`hashlib`)
+- pytest (tests)
+- Ruff (linting)
 
-The project demonstrates how reliability can be built on top of UDP using acknowledgements, retransmissions, transfer progress tracking, and file-integrity verification.
+The application has no third-party runtime dependencies. `pytest` and `ruff` are development dependencies.
 
+## Requirements
 
+- Python 3.12+
+- Tkinter support in the Python installation
+- Git, if cloning the repository
 
-\## Features
+On Windows, use a Python installation that includes Tcl/Tk. The commands below use PowerShell.
 
+## Installation
 
+### 1. Clone the repository
 
-\- \*\*Stop-and-Wait ARQ:\*\* Sends data chunks and waits for acknowledgements.
-
-\- \*\*Reliable transfer:\*\* Supports retransmission when acknowledgements are not received as expected.
-
-\- \*\*File-integrity verification:\*\* Verifies the received file using its size and SHA-256 hash.
-
-\- \*\*Desktop GUI:\*\* Built with Python Tkinter.
-
-\- \*\*Transfer monitoring:\*\* Displays progress, elapsed time, transfer statistics, and status.
-
-\- \*\*Additional pages:\*\* Logs, recent transfers, settings, and application information.
-
-\- \*\*Automated tests:\*\* Unit, integration, and acceptance tests.
-
-
-
-\## Technology Stack
-
-
-
-\- Python 3.12+
-
-\- Tkinter
-
-\- UDP sockets
-
-\- Stop-and-Wait ARQ
-
-\- SHA-256
-
-\- pytest
-
-\- Ruff
-
-
-
-\## Requirements
-
-
-
-\- Python 3.12 or newer
-
-\- Git
-
-\- Tkinter support in your Python installation
-
-
-
-No third-party runtime packages are declared in the project configuration. `pytest` and `ruff` are used for development and testing.
-
-
-
-\## Getting Started
-
-
-
-\### 1. Clone the repository
-
-
-
-```bash
-
+```powershell
 git clone https://github.com/prateek-kumar007/Reliable-UDP-File-Transfer.git
-
 cd Reliable-UDP-File-Transfer
-
 ```
 
-
-
-\### 2. Create a virtual environment
-
-
-
-\*\*Windows PowerShell\*\*
-
-
+### 2. Create and activate a virtual environment
 
 ```powershell
-
 py -3.12 -m venv .venv
-
-.\\.venv\\Scripts\\Activate.ps1
-
+.\.venv\Scripts\Activate.ps1
 ```
 
+If PowerShell blocks activation, use the virtual environment's Python executable directly, for example `\.venv\Scripts\python.exe`.
 
-
-If PowerShell blocks activation, you can run the environment's Python directly using `.venv\\Scripts\\python.exe`.
-
-
-
-\### 3. Install development dependencies
-
-
+### 3. Install the project and development tools
 
 ```powershell
-
-python -m pip install -e ".\[dev]"
-
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
 ```
 
-
-
-\### 4. Launch the desktop application
-
-
+### 4. Launch the GUI
 
 ```powershell
-
-python -m reliable\_udp.gui.app
-
+python -m reliable_udp.gui.app
 ```
 
+## Run a local transfer
 
+To transfer a file between two application instances on the same computer:
 
-If the package is not installed in editable mode, run it with the project source path configured as described in the project setup.
+1. Launch the application in two separate windows by running `python -m reliable_udp.gui.app` twice.
+2. In the first window, select **Receive files**, choose an existing destination folder, set the UDP port (the default is `5001`), and click **Start listening**.
+3. In the second window, select **Send a file**, choose a source file, set the peer IP to `127.0.0.1`, and enter the same UDP port as the receiver.
+4. Click **Start transfer** and wait for the sender and receiver to report completion.
+5. Confirm that the receiver reports successful integrity verification and that the received file matches the source.
 
+The receiver binds to all local IPv4 interfaces on the selected port. The sender's peer IP and port must identify the receiver. If the port is already occupied, stop the application using it or choose another available port on both sides.
 
+### Important: existing destination files
 
-\## How to Use
+The receiver **does not overwrite existing files**. If the destination folder already contains a file with the incoming filename, choose another destination folder or move the existing file before retrying. This protects existing data.
 
+## Transfer between different computers
 
+Both computers must have network reachability over UDP. Start the receiver first, then configure the sender with the receiver computer's reachable IP address and listening port. Allow the selected UDP port through the receiver's firewall. Transfers across separate networks may require router or network configuration.
 
-1\. Launch the application.
+## Transfer protocol overview
 
-2\. Open the \*\*Receiver\*\* interface and choose a destination folder and UDP port.
+1. The sender creates metadata containing the filename, file size, chunk size, and SHA-256 digest, then sends a `START` packet.
+2. The receiver validates the request and replies with an acknowledgement when it accepts the transfer.
+3. The sender transmits `DATA` chunks sequentially and waits for the matching acknowledgement. Packets are retried after timeout when necessary.
+4. The sender sends `END` after all chunks have been acknowledged; the receiver verifies the received byte count and SHA-256 digest before publishing the file.
+5. The receiver sends `FIN_ACK` after successful finalization.
 
-3\. Start listening on the receiver.
+Packets use a fixed header containing a protocol marker, message type, transfer ID, sequence number, and payload length. The maximum UDP datagram size configured by the project is 1,200 bytes, including the 27-byte header; the maximum data payload is 1,173 bytes.
 
-4\. Open the sender interface or a second application instance.
+## Transfer history
 
-5\. Select the file to send and enter the receiver's IP address and port.
+The GUI saves transfer history in JSON format at:
 
-6\. Start the transfer.
+```text
+%USERPROFILE%\.reliable_udp\transfer_history.json
+```
 
-7\. Wait for the sender and receiver to report completion.
+On startup, the application loads saved history. The application retains up to 1,000 history entries. Activity logs are intended for the current application session; transfer history is the persistent record.
 
-8\. Confirm that the receiver reports successful integrity verification.
+## Tests and linting
 
-
-
-\### Local testing
-
-
-
-To test two application instances on the same computer, use:
-
-
-
-\- Receiver address: `0.0.0.0`
-
-\- Receiver port: `5001`
-
-\- Sender destination IP: `127.0.0.1`
-
-\- Sender destination port: `5001`
-
-
-
-Ensure the receiver is listening before starting the sender. Use a different available port if port `5001` is already occupied.
-
-
-
-\### Transfer between different computers
-
-
-
-Both computers must be able to communicate over UDP. Use the receiver computer's reachable IP address, configure the required firewall rules, and ensure the selected UDP port is allowed. Devices on separate networks may require additional network configuration.
-
-
-
-\## Run the Tests
-
-
-
-Run the full test suite:
-
-
+Run the complete test suite from the repository root:
 
 ```powershell
-
 python -m pytest -q
-
 ```
 
+Compile the Python source files:
 
+```powershell
+python -m compileall -q src
+```
 
 Run Ruff:
 
-
-
 ```powershell
-
-ruff check src\\reliable\_udp
-
+python -m ruff check src\reliable_udp
 ```
 
+The project snapshot reviewed for this README passed **107 tests** and Python compilation. Re-run the commands above after making code changes to verify your working copy.
 
-
-\## Project Structure
-
-
+## Project structure
 
 ```text
-
 Reliable-UDP-File-Transfer/
-
 ├── src/
-
-│   └── reliable\_udp/
-
+│   └── reliable_udp/
 │       ├── gui/
-
 │       │   ├── app.py
-
-│       │   ├── transfer\_page.py
-
-│       │   ├── logs\_page.py
-
-│       │   ├── history\_page.py
-
-│       │   ├── settings\_page.py
-
-│       │   └── about\_page.py
-
-│       ├── file\_storage.py
-
+│       │   ├── components.py
+│       │   ├── transfer_page.py
+│       │   ├── logs_page.py
+│       │   ├── history_page.py
+│       │   ├── settings_page.py
+│       │   └── about_page.py
+│       ├── file_storage.py
 │       ├── metadata.py
-
 │       ├── protocol.py
-
 │       ├── receiver.py
-
-│       ├── receiver\_service.py
-
+│       ├── receiver_service.py
 │       ├── sender.py
-
 │       └── transport.py
-
 ├── tests/
-
-├── logs/
-
+│   ├── unit/
+│   ├── integration/
+│   └── acceptance/
 ├── pyproject.toml
-
-├── .gitignore
-
 └── README.md
-
 ```
 
+## Limitations
 
+- Stop-and-Wait ARQ sends one data chunk at a time, so throughput may be limited on high-latency networks.
+- Reliability mechanisms do not provide encryption or peer authentication. Do not treat the protocol as a secure channel for sensitive files on untrusted networks.
+- Transfers depend on network reachability, correct addresses and ports, and firewall configuration.
+- The receiver intentionally refuses to overwrite files already present at the destination.
 
-\## Current Test Status
+## Author
 
+**Prateek Kumar Singh**
 
-
-The project test suite passed locally with \*\*107 tests passing\*\*. To verify the current version on your machine, run the test commands above.
-
-
-
-\## Limitations
-
-
-
-\- The current interface is a desktop application, not a hosted web application.
-
-\- Transfers between computers depend on network reachability and firewall configuration.
-
-\- The protocol is designed for reliable delivery, not encryption. Do not use it to transfer sensitive files over untrusted networks without adding appropriate security.
-
-
-
-\## Author
-
-
-
-\*\*Prateek Kumar Singh\*\*
-
-
-
-GitHub: \[@prateek-kumar007](https://github.com/prateek-kumar007)
-
-
-
-\## Repository
-
-
-
-\[Reliable UDP File Transfer on GitHub](https://github.com/prateek-kumar007/Reliable-UDP-File-Transfer)
+- GitHub: [@prateek-kumar007](https://github.com/prateek-kumar007)
+- Repository: [Reliable UDP File Transfer](https://github.com/prateek-kumar007/Reliable-UDP-File-Transfer)
