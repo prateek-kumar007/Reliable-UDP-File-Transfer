@@ -22,6 +22,7 @@ from reliable_udp.transport import (
     DEFAULT_MAX_RETRANSMISSIONS,
     DEFAULT_TIMEOUT_SECONDS,
 )
+
 from .components import UI
 
 
@@ -308,7 +309,8 @@ class TransferPage(ttk.Frame):
         UI.section_title(
             progress,
             "Live progress",
-            "Transfer progress and protocol statistics update as packets are acknowledged.",
+            "Transfer progress and protocol statistics update as packets "
+            "are acknowledged.",
         ).pack(anchor="w", pady=(0, 6))
 
         progress_head = ttk.Frame(progress, style="App.TFrame")
