@@ -12,11 +12,11 @@ except (AttributeError, OSError):
     except (AttributeError, OSError):
         pass
 
-from datetime import datetime
-import tkinter as tk
-from tkinter import ttk
 import json
+import tkinter as tk
+from datetime import datetime
 from pathlib import Path
+from tkinter import ttk
 
 from reliable_udp.gui.about_page import AboutPage
 from reliable_udp.gui.components import UI
