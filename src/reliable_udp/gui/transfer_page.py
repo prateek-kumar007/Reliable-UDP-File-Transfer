@@ -29,6 +29,9 @@ from .components import UI
 class TransferPage(ttk.Frame):
     """Sender and receiver controls with thread-safe progress updates."""
 
+    # Keep Tk responsive while processing bursts of per-packet events.
+    MAX_EVENTS_PER_TICK = 200
+
     def __init__(self, parent, app):
         super().__init__(parent, style="App.TFrame")
         self.app = app
@@ -886,9 +889,11 @@ class TransferPage(ttk.Frame):
             self._log("History unavailable: app.record_transfer() is missing.")
 
     def _process_events(self):
+        processed = 0
         try:
-            while True:
+            while processed < self.MAX_EVENTS_PER_TICK:
                 event = self.events.get_nowait()
+                processed += 1
                 name = event.get("event", "")
 
                 if name == "transfer_started":
@@ -899,21 +904,33 @@ class TransferPage(ttk.Frame):
                 elif name == "packet_sent":
                     message_type = event.get("message_type", "packet")
                     attempt = event.get("attempt", 1)
+                    retransmission = bool(event.get("retransmission"))
                     self.attempts_text.set(
                         str(int(self.attempts_text.get()) + 1)
                     )
-                    suffix = " (retry)" if event.get("retransmission") else ""
-                    self._log(
-                        f"Sent {message_type}, "
-                        f"seq {event.get('sequence')}, "
-                        f"attempt {attempt}{suffix}"
-                    )
+
+                    # DATA packets can produce thousands of events for a
+                    # large file. Log START/END and retries, not every DATA.
+                    if message_type != "DATA" or retransmission:
+                        suffix = " (retry)" if retransmission else ""
+                        self._log(
+                            f"Sent {message_type}, "
+                            f"seq {event.get('sequence')}, "
+                            f"attempt {attempt}{suffix}"
+                        )
 
                 elif name == "ack_received":
-                    self._log(
-                        f"Received {event.get('message_type')} ACK for "
-                        f"sequence {event.get('sequence')}"
-                    )
+                    message_type = event.get("message_type", "packet")
+                    attempt = event.get("attempt", 1)
+
+                    # Avoid flooding Tk and the shared log with thousands
+                    # of routine DATA acknowledgements.
+                    if message_type != "DATA" or attempt > 1:
+                        self._log(
+                            f"Received {message_type} ACK for "
+                            f"sequence {event.get('sequence')}"
+                            + (f" (attempt {attempt})" if attempt > 1 else "")
+                        )
 
                 elif name == "timeout":
                     self._log(
@@ -1089,7 +1106,9 @@ class TransferPage(ttk.Frame):
             elapsed = time.monotonic() - self.started_at
             self.elapsed_text.set(f"{elapsed:.1f} s")
 
-        self.after(100, self._process_events)
+        # Drain event bursts in bounded batches so Tk can remain responsive.
+        delay_ms = 1 if processed >= self.MAX_EVENTS_PER_TICK else 100
+        self.after(delay_ms, self._process_events)
 
     def _update_progress(self, event):
         current = int(event.get("bytes_acknowledged", 0))
