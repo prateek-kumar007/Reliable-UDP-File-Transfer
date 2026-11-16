@@ -38,3 +38,11 @@ received_*/
 
 # Python cache
 __pycache__/
+
+# Local acceptance-test artifacts (keep out of source control)
+/acceptance-input/
+/acceptance-output/
+/screenshots/
+/ADD-TO-GITHUB.txt
+/RFT-debug.zip
+/Reliable-UDP-current.zip
