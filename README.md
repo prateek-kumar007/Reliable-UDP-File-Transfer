@@ -127,6 +127,17 @@ python -m ruff check src\reliable_udp
 
 The project snapshot reviewed for this README passed **107 tests** and Python compilation. Re-run the commands above after making code changes to verify your working copy.
 
+## User guide, acceptance tests, and distribution
+
+- [Windows User Manual](USER_MANUAL.md): install from source, run sender/receiver, transfer between laptops, understand history, and troubleshoot errors.
+- [Manual Acceptance Test Results](docs/ACCEPTANCE_TEST_RESULTS.md): observed results for small/large transfers, overwrite protection, port conflict, and persistent history.
+- [Release-readiness checklist](RELEASE_CHECKLIST.md): additional manual checks before calling a release ready.
+- [GitHub Releases](https://github.com/prateek-kumar007/Reliable-UDP-File-Transfer/releases): download the packaged Windows build when a versioned release is published.
+
+A Windows packaging workflow is available under `.github/workflows/build-windows.yml`. Run it from the repository's **Actions** tab to produce a short-lived test artifact. Publishing a version tag such as `v0.2.0` runs the same tests and attaches the Windows ZIP to a GitHub Release. The packaged build has not been called release-ready until it is tested on a separate laptop.
+
+**Manual-test caveat:** AT-04 currently proves that an occupied UDP port is reported (Windows error 10048); confirming that the second GUI remains responsive after dismissing the dialog is still pending. See the acceptance report for this exact status.
+
 ## Project structure
 
 ```text
