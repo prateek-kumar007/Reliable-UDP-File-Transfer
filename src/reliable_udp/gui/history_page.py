@@ -2,7 +2,7 @@
 """Recent transfer history page for Reliable UDP File Transfer."""
 
 import csv
-from tkinter import filedialog, messagebox, StringVar, ttk
+from tkinter import StringVar, filedialog, messagebox, ttk
 
 from .components import UI
 
@@ -239,7 +239,10 @@ class HistoryPage(ttk.Frame):
         timestamp = entry.get("timestamp", entry.get("date", "—"))
         filename = entry.get("filename", entry.get("file_name", "Unknown file"))
         direction = entry.get("direction", entry.get("mode", "—"))
-        size = entry.get("bytes_transferred", entry.get("size_bytes", entry.get("bytes_sent", 0)))
+        size = entry.get(
+            "bytes_transferred",
+            entry.get("size_bytes", entry.get("bytes_sent", 0)),
+        )
         duration = entry.get("duration_seconds", entry.get("duration", "—"))
         status = str(entry.get("status", "COMPLETED")).upper().replace("_", " ")
         integrity = entry.get("integrity", entry.get("verification", "—"))
@@ -251,7 +254,11 @@ class HistoryPage(ttk.Frame):
         elif status in {"ACTIVE", "RUNNING", "IN PROGRESS"}:
             status = "IN PROGRESS"
         else:
-            status = status if status in {"COMPLETED", "FAILED", "IN PROGRESS"} else "COMPLETED"
+            status = (
+                status
+                if status in {"COMPLETED", "FAILED", "IN PROGRESS"}
+                else "COMPLETED"
+            )
 
         if isinstance(size, str):
             size_display = size
