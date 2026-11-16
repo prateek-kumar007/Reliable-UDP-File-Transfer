@@ -1,8 +1,8 @@
 """Persistent settings page for Reliable UDP File Transfer."""
 
 import json
-from pathlib import Path
 import tkinter as tk
+from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from reliable_udp.protocol import MAX_PAYLOAD_SIZE
