@@ -3,7 +3,7 @@
 
 import csv
 from datetime import datetime
-from tkinter import filedialog, messagebox, StringVar, ttk
+from tkinter import StringVar, filedialog, messagebox, ttk
 
 from .components import UI
 
@@ -29,7 +29,8 @@ class LogsPage(ttk.Frame):
         UI.page_header(
             self,
             "Transfer Logs",
-            "Inspect transfer activity, troubleshoot failures, and export diagnostic records.",
+            "Inspect transfer activity, troubleshoot failures, and export "
+            "diagnostic records.",
         ).pack(fill="x", pady=(0, 16))
 
         toolbar = UI.card(self, padding=14)
