@@ -122,7 +122,7 @@ python -m compileall -q src
 Run Ruff:
 
 ```powershell
-python -m ruff check src\reliable_udp
+python -m python -m ruff check src tests
 ```
 
 The project snapshot reviewed for this README passed **107 tests** and Python compilation. Re-run the commands above after making code changes to verify your working copy.
